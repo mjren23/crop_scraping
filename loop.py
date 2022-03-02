@@ -87,9 +87,6 @@ def check_already_done(check_year, check_state, check_district, check_tehsil, ch
     return False
 
 
-def get_html_table():
-
-
 
 years = [2000]
 years_text = ["2000-01"]
