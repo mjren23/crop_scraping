@@ -25,12 +25,16 @@ def get_last_done():
         last_done["year"] = file.readline()
         last_done["state"] = file.readline()
         last_done["district"] = file.readline()
-    file.close()
     return last_done
 
 
+# expects all string parameters
 def mark_done(year, state, district):
     file_name = "last_done.txt"
     with open(file_name, 'w') as file:
-        file.writelines([year, state, district])
-    file.close()
+        file.write(year)
+        file.write("\n")
+        file.write(state)
+        file.write("\n")
+        file.write(district)
+

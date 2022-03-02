@@ -1,20 +1,3 @@
-# - For year in [2001, 2015, 2016, 2005, 2010]:
-#   - Create session
-#   - Make call to homepage, get ViewState info
-#   - Make call to Get_ddlData (returns list of states for that year)
-#   - Parse list of states to get districts (or make call to getDistrict with the state)
-#   - For each district:
-#     - Make call to getTehsil (returns list of tehsils)
-#     - For each tehsil:
-#       - For each crop in [paddy, wheat, maize, soybean, cotton, groundnut, rapeseed and mustard, bajra, sugarcane, jowar]:
-#         - Make POST to GetSession with form data
-#         - Make POST to homepage with ViewState info
-#         - Make GET to tktabledisplay to get EventValidation info
-#         - Make POST to tktabledisplay, get table back
-#           - Or error back if no data
-#         - Parse table contents
-#         - Save to file
-#
 # ### Things to think about
 # - Error handling
 # - Running script unsupervised
@@ -272,7 +255,7 @@ for i in range(len(years)):
                     time.sleep(crawler_delay)
 
             # done with district, mark as done
-            mark_done(year, state[0], district[0])
+            mark_done(str(year), state[0], district[0])
 
 
 
