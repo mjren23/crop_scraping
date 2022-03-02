@@ -19,14 +19,78 @@
 # - Error handling
 # - Running script unsupervised
 # - Pausing in between scrapes
-
+import time
 import requests
 import json
 from bs4 import BeautifulSoup
 import re
+import pandas as pd
+from upload_dropbox import Uploader
+from interface_trackers import get_finished_set, get_last_done, mark_done
 
 # TODO: separate out into functions
+# TODO: documentation
 # TODO: don't forget to switch years back to full list
+
+
+def parse_list(list_places):
+    split = list_places.split("|")
+    to_return = []
+    for string in split:
+        extracted = re.search(",(.*)", string).group(1).strip()
+        num = re.search("^(.*?),", string).group(1)
+        if "&amp;" in extracted:
+            extracted = extracted.replace("&amp;", "&")
+        to_return.append((extracted, num))
+    return to_return
+
+
+def save_file(html_text):
+    soup = BeautifulSoup(html_text, "html.parser")
+    initial = soup.find("div", text="Sl No")
+    if initial is None:
+        return -1
+
+    headers = []
+    for col in initial.parent.parent:
+        headers.append(col.get_text())
+
+    headers = headers[1:]
+    data = []
+    row_number = 0
+    curr_row = initial.parent.parent
+
+    while row_number < 18:
+        row_data = []
+        curr_row = curr_row.next_sibling
+        for col in curr_row:
+            row_data.append(col.get_text)
+        row_data = row_data[1:]
+        data.append(row_data)
+        row_number += 1
+
+    df = pd.DataFrame(data=data, columns=headers)
+    file_name = str(year) + "_" + state[0] + "_" + district[0] + "_" + tehsil[0] + "_" + crop[0] + ".csv"
+    df.to_csv(file_name)
+    return file_name
+
+
+def upload_file(path):
+    res = uploader.upload(path)
+    if res != 0:
+        print("uh oh, something went wrong")
+
+
+def check_already_done(check_year, check_state, check_district, check_tehsil, check_crop):
+    if (str(check_year), check_state.strip(), check_district.strip(), check_tehsil.strip(), check_crop) in finished:
+        return True
+    return False
+
+
+def get_html_table():
+
+
+
 years = [2000]
 years_text = ["2000-01"]
 crops = [("PADDY", "101"), ("WHEAT", "106"), ("MAIZE", "104"), ("SOYABEAN", "1009"), ("COTTON", "1101"),
@@ -44,22 +108,17 @@ headers_url = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:9
                "Connection": "keep-alive",
                }
 
-
-def parse_list(list_places):
-    split = list_places.split("|")
-    to_return = []
-    for string in split:
-        extracted = re.search(",(.*)", string).group(1).strip()
-        num = re.search("^(.*?),", string).group(1)
-        if "&amp;" in extracted:
-            extracted = extracted.replace("&amp;", "&")
-        to_return.append((extracted, num))
-    return to_return
+uploader = Uploader()
+finished = get_finished_set()
+last_done = get_last_done()
 
 
 for i in range(len(years)):
     year = years[i]
     year_text = years_text[i]
+
+    if last_done["year"] >= year:
+        continue
 
     # get home page
     req_home = session.get("https://agcensus.dacnet.nic.in/TalukCharacteristics.aspx")
@@ -89,6 +148,8 @@ for i in range(len(years)):
     states = parse_list(states_for_year)
 
     for state in states:
+        if last_done["state"] >= state:
+            continue
         # get districts for this state
         print("handling state " + str(state))
         data_district = json.dumps({'value': state[1], 'Text': state[0], 'CallFor': 'State', 'year': str(year)})
@@ -101,6 +162,8 @@ for i in range(len(years)):
         districts = parse_list(districts_for_state)
         print(districts)
         for district in districts:
+            if last_done["district"] >= district:
+                continue
             # get tehsils for this district
             print("handling district " + str(district))
             data_tehsil = json.dumps(
@@ -124,6 +187,8 @@ for i in range(len(years)):
                 req_get_crop = session.post("https://agcensus.dacnet.nic.in/TalukCharacteristics.aspx/Get_Crop",
                                             headers=headers_json,
                                             data=data_crop)
+                print("here")
+                print(req_get_crop.json())
                 text_response_crop = req_get_crop.json()['d']['Crops']
                 if text_response_crop == "":
                     print("no cropping pattern data for tehsil " + str(tehsil[0]) + " in year " + str(year))
@@ -133,7 +198,10 @@ for i in range(len(years)):
                         print("crop " + str(crop[0]) + " data not available for tehsil " + str(
                             tehsil[0]) + " in year " + str(year))
                         continue
-                    # TODO: update values
+                    # check if should continue
+                    if check_already_done(year, state[0], district[0], tehsil[0], crop[0]):
+                        continue
+
                     data_get_session = json.dumps({
                         "value1": [year_text, str(year), "CROPPING PATTERN", "6b", "ALL SOCIAL GROUPS", "4", crop[0],
                                    crop[1], state[0], state[1],
@@ -199,13 +267,18 @@ for i in range(len(years)):
                                                      headers=headers_url,
                                                      data=tk_data)
                     print(req_tk_table_post.text)
-                # except
+                    name = save_file(req_tk_table_post.text)
+                    if name == -1:
+                        # TODO: log error
+                        continue
+                    upload_file(name)
+                    time.sleep(crawler_delay)
 
-                # for crop in crops:
+            # done with district, mark as done
+            mark_done(year, state[0], district[0])
 
-            break
-        break
 
-# have some sort of file that can track which have already been done, read that in at the start of each, only
-# do those that haven't been done
+
 # make log file: time of error, what happened
+# have backoff policy
+# two kinds of errors: data not available and website failed
