@@ -67,6 +67,7 @@ tktable_get_soup = BeautifulSoup(req_tk_table_get.text, "html.parser")
 event_validation = tktable_get_soup.select("#__EVENTVALIDATION")[0]['value']
 new_view_state = tktable_get_soup.select("#__VIEWSTATE")[0]['value']
 new_view_state_gen = tktable_get_soup.select("#__VIEWSTATEGENERATOR")[0]['value']
+print("HEREHEREHERE")
 print(event_validation)
 
 

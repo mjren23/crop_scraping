@@ -1,1 +1,5 @@
 .idea/*
+.env
+state_trackers/*
+saved_tables/*
+logs/*
