@@ -89,9 +89,10 @@ def check_already_done(check_year, check_state, check_district, check_tehsil, ch
     return False
 
 
+# note: if tehsil has forward slash "/" in it, will replace with "-"
 def gen_file_name():
-    return str(year) + "_" + state[0].replace(" ", "") + "_" + district[0].replace(" ", "") + "_" + tehsil[0].replace(
-        " ", "") + "_" + crop[
+    return str(year) + "_" + state[0].replace(" ", "") + "_" + district[0].replace("/", "-").replace(" ", "") + "_" + tehsil[0].replace(
+        " ", "").replace("/", "-") + "_" + crop[
                0].replace(" ", "")
 
 
@@ -136,7 +137,7 @@ def try_request(request_obj, is_home_request=False, is_eventval_request=False, i
                     if soup.find("div", text="Sl No") is not None or soup.find("div",
                                                                                text="No Record Found") is not None:
                         return response
-        except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as error:
+        except (requests.exceptions.ConnectionError, requests.exceptions.RequestException) as error:
             log(str(error) + " while handling request to " + request_obj.url)
 
         if new_wait_time > GIVE_UP:
@@ -165,11 +166,13 @@ def except_hook(exctype, value, traceback):
 def exit_program(exctype=None, value=None, traceback=None):
     # upload most recent log file
     upload_file("logs/" + curr_log_file)
-    for file_name in os.listdir("state_trackers"):
-        upload_file("state_trackers/" + file_name)
+    # upload most recent state tracker
+    to_upload = last_done["state"].replace(" ", "") + "_unsuccessful.txt"
+    upload_file("state_trackers/" + to_upload)
     if exctype is not None:
         sys.__excepthook__(exctype, value, traceback)
     sys.exit(-1)
+
 
 
 years = [2000, 2015, 2005, 2010]
@@ -219,7 +222,7 @@ for i in range(len(years)):
     year = years[i]
     year_text = years_text[i]
 
-    if last_done != -1 and int(last_done["year"]) > year:
+    if last_done != -1 and years.index(int(last_done["year"])) > i:
         continue
 
     home = requests.Request('GET', "https://agcensus.dacnet.nic.in/TalukCharacteristics.aspx")
@@ -261,7 +264,7 @@ for i in range(len(years)):
     states = parse_list(states_for_year)
 
     for state in states:
-        if last_done != -1 and last_done["state"] > state[0] and int(last_done["year"]) >= year:
+        if last_done != -1 and last_done["state"] > state[0]:
             continue
         # get districts for this state
         log("handling state " + str(state))
@@ -284,8 +287,7 @@ for i in range(len(years)):
             continue
         districts = parse_list(districts_for_state)
         for district in districts:
-            if last_done != -1 and last_done["district"] > district[0] and last_done["state"] >= state[0] and int(
-                    last_done["year"]) >= year:
+            if last_done != -1 and last_done["district"] > district[0] and last_done["state"] >= state[0]:
                 continue
             # get tehsils for this district
             log("handling district " + str(district[0]))
@@ -316,11 +318,11 @@ for i in range(len(years)):
 
             for tehsil in tehsils:
 
-                log("handling tehsil " + tehsil[0])
-
                 if last_done != -1 and last_done["tehsil"] > tehsil[0] and last_done["district"] >= district[0] and \
-                        last_done["state"] >= state[0] and int(last_done["year"]) >= year:
+                        last_done["state"] >= state[0]:
                     continue
+
+                log("handling tehsil " + tehsil[0])
 
                 # check if cropping pattern is available
                 data_crop = json.dumps(
